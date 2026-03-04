@@ -10,7 +10,7 @@ public class InterviewSessionResponse {
     private Long id;
     private String problemStatement;
     private String conversationLog;
-    private Integer score;
+    private Double score;
     private String status;
     private LocalDateTime createdAt;
 }

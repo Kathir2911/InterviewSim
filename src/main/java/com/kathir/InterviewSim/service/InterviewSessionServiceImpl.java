@@ -6,10 +6,12 @@ import com.kathir.InterviewSim.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 public class InterviewSessionServiceImpl implements InterviewSessionService {
     private final InterviewSessionRepository repository;
+
     private InterviewSessionResponse mapToResponse(InterviewSession session){
         return InterviewSessionResponse.builder()
                 .id(session.getId())
@@ -19,6 +21,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 .status(session.getStatus().name())
                 .createdAt(session.getCreatedAt()).build();
     }
+
     @Override
     public InterviewSessionResponse startSession(String problemStatement){
         InterviewSession session=InterviewSession.builder().
@@ -30,6 +33,7 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         InterviewSession savedSession=repository.save(session);
         return mapToResponse(savedSession);
     }
+
     @Override
     public InterviewSessionResponse submitAnswer(Long sessionId,String answer){
         InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("Session not found."));
@@ -39,9 +43,27 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         InterviewSession updatedSession=repository.save(session);
         return mapToResponse(updatedSession);
     }
+
     @Override
     public InterviewSessionResponse getSession(Long sessionId){
         InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("Session not found."));
         return mapToResponse(session);
+    }
+
+    @Override
+    public InterviewSessionResponse cancelSession(Long sessionId){
+        InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("session not found"));
+        session.setStatus(InterviewSession.Status.CANCELLED);
+        InterviewSession updatedSession=repository.save(session);
+        return mapToResponse(updatedSession);
+    }
+
+    @Override
+    public InterviewSessionResponse endSession(Long sessionId){
+        InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("Session not found"));
+        session.setStatus(InterviewSession.Status.COMPLETED);
+        InterviewSession updatedSession=repository.save(session);
+        return mapToResponse(updatedSession);
+
     }
 }

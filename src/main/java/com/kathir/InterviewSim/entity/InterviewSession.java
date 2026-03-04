@@ -25,7 +25,7 @@ public class InterviewSession {
     @Column(columnDefinition = "TEXT")
     private String userSolution;
 
-    private Integer score;
+    private Double score;
 
     @Column(columnDefinition = "TEXT")
     private String feedback;
@@ -37,6 +37,7 @@ public class InterviewSession {
 
     public enum Status{
         ONGOING,
-        COMPLETED
+        COMPLETED,
+        CANCELLED
     }
 }
