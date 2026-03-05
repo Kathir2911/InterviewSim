@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class InterviewSessionServiceImpl implements InterviewSessionService {
     private final InterviewSessionRepository repository;
+    private final QuestionGeneratorService questionGeneratorService;
+    private final ScoreGeneratorService scoreGeneratorService;
 
     private InterviewSessionResponse mapToResponse(InterviewSession session){
         return InterviewSessionResponse.builder()
@@ -24,11 +26,13 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
 
     @Override
     public InterviewSessionResponse startSession(String problemStatement){
+        String firstQuestion=questionGeneratorService.generateNextQuestion(problemStatement,"");
         InterviewSession session=InterviewSession.builder().
                 problemStatement(problemStatement).
-                conversationLog("Interview Started...\n").
+                conversationLog("Interview Started...\nInterviewer:"+firstQuestion).
                 status(InterviewSession.Status.ONGOING).
                 createdAt(LocalDateTime.now()).
+                score(0.0).
                 build();
         InterviewSession savedSession=repository.save(session);
         return mapToResponse(savedSession);
@@ -37,9 +41,28 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
     @Override
     public InterviewSessionResponse submitAnswer(Long sessionId,String answer){
         InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("Session not found."));
-        String updatedLog=session.getConversationLog()+"\nCandidate: "+answer+"\nInterviewer: Thank you Let us continue.";
+        if(session.getStatus()!= InterviewSession.Status.ONGOING){
+            throw new RuntimeException("Interview is already finished.");
+        }
+        String previousSolution=session.getUserSolution();
+        if(previousSolution==null) previousSolution="";
+        String updatedSolution=previousSolution+"\n"+answer;
+        session.setUserSolution(updatedSolution);
+
+        Double currentScore=scoreGeneratorService.evaluateAnswer(
+                session.getProblemStatement(),
+                answer,
+                session.getConversationLog()
+        );
+        session.setScore(session.getScore()+currentScore);
+
+        String nextQuestion = questionGeneratorService.generateNextQuestion(
+                session.getProblemStatement(),
+                session.getConversationLog()
+        );
+        String updatedLog=session.getConversationLog()+"\nCandidate: "+answer+"\nInterviewer: "+nextQuestion;
         session.setConversationLog(updatedLog);
-        session.setUserSolution(answer);
+
         InterviewSession updatedSession=repository.save(session);
         return mapToResponse(updatedSession);
     }
