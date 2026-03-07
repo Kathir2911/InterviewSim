@@ -24,4 +24,14 @@ public class InterviewController {
     public InterviewSessionResponse getSession(@PathVariable Long id) {
         return service.getSession(id);
     }
+
+    @PutMapping("/{id}/end")
+    public InterviewSessionResponse endSession(@PathVariable Long id){
+        return service.endSession(id);
+    }
+
+    @PutMapping("/{id}/cancel")
+    public InterviewSessionResponse cancelSession(@PathVariable Long id){
+        return service.cancelSession(id);
+    }
 }
