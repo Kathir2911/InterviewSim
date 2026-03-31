@@ -5,12 +5,13 @@ import com.kathir.InterviewSim.service.QuestionGeneratorService;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class QuestionGeneratorServiceImpl implements QuestionGeneratorService {
+    
+    private final OllamaService ollamaService;
+    
     @Override
-    public String generateNextQuestion(String problemStatement,String conversationLog){
-        if(conversationLog.contains("Time complexity")){
-            return "Can you implement the algorithm";
-        }
-        return "What is the time complexity of this approach?";
+    public String generateNextQuestion(String problemStatement, String conversationLog) {
+        return ollamaService.generateInterviewQuestion(problemStatement, conversationLog);
     }
 }

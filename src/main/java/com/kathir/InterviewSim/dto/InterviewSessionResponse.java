@@ -12,5 +12,7 @@ public class InterviewSessionResponse {
     private String conversationLog;
     private Double score;
     private String status;
+    private String feedback;
+    private String userSolution;
     private LocalDateTime createdAt;
 }
