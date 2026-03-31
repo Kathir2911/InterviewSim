@@ -18,6 +18,32 @@ Unlike platforms that simply check if your code compiles or passes test cases, I
 
 - 🎙️ Acts as a live, conversational interviewer
 - 🔍 Asks clarifying questions like a real interviewer would
+
+## 🌟 **Live Demo**
+
+🔗 **Want to try it now?** Deploy your own demo in minutes:
+
+### **Quick Deploy Options:**
+
+1. **Railway** (Recommended - Free):
+   - Push code to GitHub
+   - Go to [railway.app](https://railway.app) 
+   - Connect your repo → Auto-deploy!
+   - Get instant demo link: `https://your-app.railway.app`
+
+2. **Render** (Free tier):
+   - Push to GitHub
+   - Go to [render.com](https://render.com)
+   - Connect repo → Deploy automatically
+   - Demo link: `https://your-app.onrender.com`
+
+3. **Local Demo**:
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.profiles=production
+   # Access at http://localhost:8080
+   ```
+
+📋 **See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions**
 - 🧠 Evaluates reasoning and thought process — not just the final answer
 - 📊 Scores performance across multiple dimensions
 - 📝 Provides structured, actionable feedback
