@@ -1,0 +1,33 @@
+# Ignore target directory
+target/
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.iml
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore documentation
+*.md
+DEPLOYMENT.md
+INTERVIEW_FLOW.md
+
+# Ignore deployment files
+deploy.sh
+start.sh
+railway.json
+Procfile
+
+# Ignore environment files
+.env
+.env.example
+
+# Ignore logs
+*.log

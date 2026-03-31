@@ -1,10 +1,9 @@
 services:
   - type: web
     name: interviewsim
-    env: java
+    env: docker
     plan: free
-    buildCommand: ./mvnw clean package -DskipTests
-    startCommand: java -Dserver.port=$PORT -Dspring.profiles.active=production -jar target/InterviewSim-0.0.1-SNAPSHOT.jar
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /
     envVars:
       - key: SPRING_PROFILES_ACTIVE
