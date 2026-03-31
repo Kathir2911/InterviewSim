@@ -57,7 +57,39 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
                 answer,
                 session.getConversationLog()
         );
-        session.setScore(session.getScore()+currentScore);
+        
+        // Handle NaN or invalid scores
+        if (currentScore == null || currentScore.isNaN() || currentScore.isInfinite()) {
+            currentScore = 0.0;
+        }
+        
+        // Calculate average score instead of accumulating
+        // Count the number of answers submitted so far
+        String[] solutionLines = updatedSolution.split("\n");
+        int answerCount = 0;
+        for (String line : solutionLines) {
+            if (line.trim().length() > 0) {
+                answerCount++;
+            }
+        }
+        
+        // Calculate running average score
+        if (answerCount <= 1) {
+            session.setScore(currentScore);
+        } else {
+            Double previousScore = session.getScore();
+            if (previousScore == null || previousScore.isNaN() || previousScore.isInfinite()) {
+                previousScore = 0.0;
+            }
+            double previousTotal = previousScore * (answerCount - 1);
+            double newAverage = (previousTotal + currentScore) / answerCount;
+            
+            // Handle any NaN results and ensure score is between 0-10
+            if (Double.isNaN(newAverage) || Double.isInfinite(newAverage)) {
+                newAverage = currentScore;
+            }
+            session.setScore(Math.min(10.0, Math.max(0.0, newAverage)));
+        }
 
         String nextQuestion = questionGeneratorService.generateNextQuestion(
                 session.getProblemStatement(),
@@ -89,16 +121,87 @@ public class InterviewSessionServiceImpl implements InterviewSessionService {
         InterviewSession session=repository.findById(sessionId).orElseThrow(()->new RuntimeException("Session not found"));
         session.setStatus(InterviewSession.Status.COMPLETED);
         
+        // Calculate final score based on overall performance
+        Double finalScore = calculateFinalScore(session);
+        session.setScore(finalScore);
+        
         // Generate AI-powered personalized feedback based on actual conversation
         String feedback = ollamaService.generateFinalFeedback(
             session.getProblemStatement(), 
             session.getConversationLog(), 
-            session.getScore()
+            finalScore
         );
         session.setFeedback(feedback);
         
         InterviewSession updatedSession=repository.save(session);
         return mapToResponse(updatedSession);
+    }
+    
+    private Double calculateFinalScore(InterviewSession session) {
+        String conversationLog = session.getConversationLog();
+        if (conversationLog == null || conversationLog.trim().isEmpty()) {
+            return 0.0;
+        }
+        
+        // Use the current score as base, but ensure it's reasonable
+        Double currentScore = session.getScore();
+        if (currentScore == null) {
+            currentScore = 0.0;
+        }
+        
+        // Ensure final score is between 0-10
+        Double finalScore = Math.min(10.0, Math.max(0.0, currentScore));
+        
+        // If score seems unreasonable (like 825), calculate based on conversation quality
+        if (finalScore > 10.0 || finalScore < 0.0) {
+            finalScore = calculateScoreFromConversation(conversationLog);
+        }
+        
+        return finalScore;
+    }
+    
+    private Double calculateScoreFromConversation(String conversationLog) {
+        String[] lines = conversationLog.split("\n");
+        int candidateResponses = 0;
+        boolean hasCode = false;
+        boolean hasComplexity = false;
+        boolean hasQuestions = false;
+        
+        for (String line : lines) {
+            if (line.startsWith("Candidate:")) {
+                candidateResponses++;
+                String content = line.toLowerCase();
+                if (content.contains("def ") || content.contains("function") || content.contains("class") || 
+                    content.contains("{") || content.contains("return")) {
+                    hasCode = true;
+                }
+                if (content.contains("complexity") || content.contains("o(")) {
+                    hasComplexity = true;
+                }
+                if (content.contains("?") || content.contains("clarify")) {
+                    hasQuestions = true;
+                }
+            }
+        }
+        
+        // Calculate score based on conversation quality
+        double score = 0.0;
+        
+        // Base score for participation
+        if (candidateResponses > 0) score += 2.0;
+        if (candidateResponses >= 3) score += 1.0;
+        if (candidateResponses >= 5) score += 1.0;
+        
+        // Bonus for code
+        if (hasCode) score += 3.0;
+        
+        // Bonus for complexity analysis
+        if (hasComplexity) score += 2.0;
+        
+        // Bonus for asking questions
+        if (hasQuestions) score += 1.0;
+        
+        return Math.min(10.0, score);
     }
     
     private String generatePersonalizedFeedback(InterviewSession session) {

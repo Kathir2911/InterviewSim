@@ -67,8 +67,94 @@ public class OllamaService {
     }
     
     public String generateInterviewQuestion(String problemStatement, String conversationHistory) {
+        // Check if we're in a repetitive loop
+        if (isRepetitivePattern(conversationHistory)) {
+            return generateProgressiveQuestion(problemStatement, conversationHistory);
+        }
+        
         String prompt = buildQuestionPrompt(problemStatement, conversationHistory);
         return generateResponse(prompt);
+    }
+    
+    private boolean isRepetitivePattern(String conversationHistory) {
+        if (conversationHistory == null || conversationHistory.trim().isEmpty()) {
+            return false;
+        }
+        
+        String[] lines = conversationHistory.split("\n");
+        if (lines.length < 4) return false;
+        
+        // Check if the last two interviewer questions are similar
+        String lastQuestion = null;
+        String secondLastQuestion = null;
+        
+        for (int i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].startsWith("Interviewer:")) {
+                if (lastQuestion == null) {
+                    lastQuestion = lines[i].toLowerCase();
+                } else if (secondLastQuestion == null) {
+                    secondLastQuestion = lines[i].toLowerCase();
+                    break;
+                }
+            }
+        }
+        
+        if (lastQuestion != null && secondLastQuestion != null) {
+            // Check for similar keywords or phrases
+            String[] lastWords = lastQuestion.split("\\s+");
+            String[] secondLastWords = secondLastQuestion.split("\\s+");
+            
+            int commonWords = 0;
+            for (String word : lastWords) {
+                if (word.length() > 3) { // Only check meaningful words
+                    for (String otherWord : secondLastWords) {
+                        if (word.equals(otherWord)) {
+                            commonWords++;
+                        }
+                    }
+                }
+            }
+            
+            // If more than 50% of meaningful words are common, it's likely repetitive
+            return commonWords > Math.max(lastWords.length, secondLastWords.length) * 0.5;
+        }
+        
+        return false;
+    }
+    
+    private String generateProgressiveQuestion(String problemStatement, String conversationHistory) {
+        // Force progression to next phase when stuck in repetitive pattern
+        String[] lines = conversationHistory.split("\n");
+        boolean hasCode = false;
+        boolean hasComplexity = false;
+        boolean hasEdgeCases = false;
+        
+        for (String line : lines) {
+            if (line.startsWith("Candidate:")) {
+                String content = line.toLowerCase();
+                if (content.contains("def ") || content.contains("function") || content.contains("return") || 
+                    content.contains("algorithm") || content.contains("loop") || content.contains("array")) {
+                    hasCode = true;
+                }
+                if (content.contains("o(") || content.contains("complexity") || content.contains("time") || content.contains("space")) {
+                    hasComplexity = true;
+                }
+                if (content.contains("edge") || content.contains("null") || content.contains("empty") || content.contains("boundary")) {
+                    hasEdgeCases = true;
+                }
+            }
+        }
+        
+        // Force progression based on what's been covered
+        if (!hasCode) {
+            return "I see we've been discussing the approach. Let's move forward - can you show me some code or pseudocode for your solution?";
+        } else if (!hasComplexity) {
+            return "Thanks for the implementation! Now let's analyze the efficiency - what's the time and space complexity?";
+        } else if (!hasEdgeCases) {
+            return "Good complexity analysis! Let's think about robustness - what edge cases should we handle?";
+        } else {
+            return "Excellent work! You've covered the key aspects. Are there any optimizations or alternative approaches you'd consider?";
+        }
     }
     
     public Double evaluateAnswer(String problemStatement, String answer, String conversationHistory) {
@@ -81,7 +167,9 @@ public class OllamaService {
             for (String line : lines) {
                 if (line.toLowerCase().contains("score:")) {
                     String scoreStr = line.replaceAll("[^0-9.]", "");
-                    return Double.parseDouble(scoreStr);
+                    double score = Double.parseDouble(scoreStr);
+                    // Ensure score is between 0 and 10
+                    return Math.min(10.0, Math.max(0.0, score));
                 }
             }
             return 5.0; // Default score if parsing fails
@@ -97,6 +185,40 @@ public class OllamaService {
     }
     
     private String buildQuestionPrompt(String problemStatement, String conversationHistory) {
+        // Analyze conversation to understand what has been covered
+        String[] lines = conversationHistory.split("\n");
+        boolean hasAskedClarification = false;
+        boolean hasProvidedSolution = false;
+        boolean hasDiscussedComplexity = false;
+        boolean hasDiscussedEdgeCases = false;
+        boolean hasDiscussedOptimization = false;
+        int questionCount = 0;
+        
+        for (String line : lines) {
+            if (line.startsWith("Interviewer:")) {
+                questionCount++;
+                String content = line.toLowerCase();
+                if (content.contains("clarify") || content.contains("understand") || content.contains("explain")) {
+                    hasAskedClarification = true;
+                }
+                if (content.contains("complexity") || content.contains("time") || content.contains("space")) {
+                    hasDiscussedComplexity = true;
+                }
+                if (content.contains("edge") || content.contains("corner") || content.contains("boundary")) {
+                    hasDiscussedEdgeCases = true;
+                }
+                if (content.contains("optimize") || content.contains("improve") || content.contains("better")) {
+                    hasDiscussedOptimization = true;
+                }
+            } else if (line.startsWith("Candidate:")) {
+                String content = line.toLowerCase();
+                if (content.contains("def ") || content.contains("function") || content.contains("class") || 
+                    content.contains("{") || content.contains("return") || content.contains("algorithm")) {
+                    hasProvidedSolution = true;
+                }
+            }
+        }
+        
         return String.format("""
             You are an experienced technical interviewer conducting a coding interview. 
             
@@ -104,17 +226,36 @@ public class OllamaService {
             
             Conversation History: %s
             
-            Based on the conversation so far, generate the next appropriate question or response as an interviewer would. 
+            Interview Progress Analysis:
+            - Questions asked so far: %d
+            - Clarification phase completed: %s
+            - Solution provided: %s
+            - Complexity discussed: %s
+            - Edge cases discussed: %s
+            - Optimization discussed: %s
             
-            Guidelines:
-            - If this is the start of the interview, ask clarifying questions about the problem
-            - If the candidate has provided a solution, ask about time/space complexity, edge cases, or optimizations
-            - If they're stuck, provide gentle hints
-            - Keep questions focused and professional
-            - Encourage the candidate to think out loud
+            Based on the conversation and progress analysis, generate the NEXT LOGICAL question in the interview sequence. 
             
-            Respond only with the question/response, no additional formatting:
-            """, problemStatement, conversationHistory);
+            Interview Flow Guidelines:
+            1. START: If no questions asked yet, ask the candidate to explain their understanding of the problem
+            2. CLARIFICATION: If understanding not clear, ask clarifying questions about requirements
+            3. APPROACH: If problem understood, ask about their approach/algorithm choice
+            4. IMPLEMENTATION: If approach discussed, ask them to implement or walk through the code
+            5. COMPLEXITY: If solution provided, ask about time/space complexity analysis
+            6. EDGE CASES: If complexity covered, discuss edge cases and error handling
+            7. OPTIMIZATION: If edge cases covered, discuss potential optimizations
+            8. WRAP UP: If all covered, ask final questions or provide encouragement
+            
+            CRITICAL RULES:
+            - DO NOT repeat questions that have already been asked
+            - DO NOT ask about topics already thoroughly discussed
+            - Progress naturally through the interview phases
+            - If the candidate seems stuck, provide hints rather than repeating the same question
+            - Keep questions concise and focused
+            
+            Generate only the next appropriate question/response, no additional formatting:
+            """, problemStatement, conversationHistory, questionCount, hasAskedClarification, 
+                hasProvidedSolution, hasDiscussedComplexity, hasDiscussedEdgeCases, hasDiscussedOptimization);
     }
     
     private String buildEvaluationPrompt(String problemStatement, String answer, String conversationHistory) {
@@ -180,12 +321,73 @@ public class OllamaService {
     }
     
     private String generateFallbackQuestion(String prompt) {
-        if (prompt.contains("complexity")) {
-            return "Great! Now can you walk me through your solution step by step and explain how you would implement it?";
-        } else if (prompt.contains("implement")) {
-            return "Excellent! Can you also discuss the time and space complexity of your approach?";
+        // Extract conversation history to avoid repetition
+        String conversationHistory = "";
+        if (prompt.contains("Conversation History:")) {
+            int start = prompt.indexOf("Conversation History:") + "Conversation History:".length();
+            int end = prompt.indexOf("Interview Progress Analysis:");
+            if (end == -1) end = prompt.indexOf("Based on the conversation");
+            if (end > start) {
+                conversationHistory = prompt.substring(start, end).trim();
+            }
+        }
+        
+        // Count questions and analyze what's been covered
+        String[] lines = conversationHistory.split("\n");
+        int questionCount = 0;
+        boolean hasAskedUnderstanding = false;
+        boolean hasAskedApproach = false;
+        boolean hasAskedImplementation = false;
+        boolean hasAskedComplexity = false;
+        boolean hasAskedEdgeCases = false;
+        boolean hasAskedOptimization = false;
+        
+        for (String line : lines) {
+            if (line.startsWith("Interviewer:")) {
+                questionCount++;
+                String content = line.toLowerCase();
+                if (content.contains("understand") || content.contains("explain") || content.contains("problem")) {
+                    hasAskedUnderstanding = true;
+                }
+                if (content.contains("approach") || content.contains("algorithm") || content.contains("strategy")) {
+                    hasAskedApproach = true;
+                }
+                if (content.contains("implement") || content.contains("code") || content.contains("write")) {
+                    hasAskedImplementation = true;
+                }
+                if (content.contains("complexity") || content.contains("time") || content.contains("space")) {
+                    hasAskedComplexity = true;
+                }
+                if (content.contains("edge") || content.contains("corner") || content.contains("boundary")) {
+                    hasAskedEdgeCases = true;
+                }
+                if (content.contains("optimize") || content.contains("improve") || content.contains("better")) {
+                    hasAskedOptimization = true;
+                }
+            }
+        }
+        
+        // Generate next logical question based on what hasn't been covered
+        if (questionCount == 0 || !hasAskedUnderstanding) {
+            return "Let's start with understanding the problem. Can you explain what you think this problem is asking for in your own words?";
+        } else if (!hasAskedApproach) {
+            return "Great! Now, what approach or algorithm would you use to solve this problem?";
+        } else if (!hasAskedImplementation) {
+            return "That sounds like a good approach. Can you walk me through how you would implement this solution?";
+        } else if (!hasAskedComplexity) {
+            return "Excellent! Now, what would be the time and space complexity of your solution?";
+        } else if (!hasAskedEdgeCases) {
+            return "Good analysis! What edge cases should we consider for this problem?";
+        } else if (!hasAskedOptimization) {
+            return "Nice work on considering edge cases. Are there any ways we could optimize this solution further?";
         } else {
-            return "Let's start with understanding the problem. Can you explain what you think this problem is asking for and what approach you would take?";
+            // All main topics covered, provide encouragement or ask follow-up
+            String[] encouragements = {
+                "Excellent work! You've covered all the key aspects. Is there anything else you'd like to discuss about this solution?",
+                "Great job! You've demonstrated a solid understanding. Any final thoughts on alternative approaches?",
+                "Well done! You've shown good problem-solving skills. Would you like to discuss any trade-offs in your solution?"
+            };
+            return encouragements[questionCount % encouragements.length];
         }
     }
     
